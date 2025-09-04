@@ -1,26 +1,203 @@
 import 'package:ponto/models/user_model.dart';
 import 'package:ponto/models/daily_summary_model.dart';
 import 'package:ponto/supabase/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserService {
-  static Future<UserModel?> getCurrentUser() async {
-    final user = SupabaseAuth.currentUser;
-    if (user == null) return null;
+  // ========== NOVOS MÉTODOS DE AUTENTICAÇÃO ==========
 
-    final result = await SupabaseService.selectSingle(
-      'users',
-      filters: {'id': user.id},
-    );
+  static Future<UserModel?> signInWithEmailPassword(
+    String email,
+    String password,
+  ) async {
+    try {
+      print('🔐 Tentando fazer login com email: $email');
 
-    if (result == null) return null;
-    return UserModel.fromJson(result);
+      final response = await SupabaseConfig.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        print('✅ Login realizado com sucesso: ${response.user!.email}');
+
+        // Buscar dados do usuário na tabela users
+        final userData = await getCurrentUser();
+        return userData;
+      } else {
+        print('❌ Login falhou: usuário é null');
+        return null;
+      }
+    } on AuthException catch (e) {
+      print('❌ Erro de autenticação: ${e.message}');
+      print('📊 Código do erro: ${e.statusCode}');
+
+      // Tratar diferentes tipos de erro
+      switch (e.message) {
+        case 'Invalid login credentials':
+          throw Exception('Email ou senha incorretos');
+        case 'Email not confirmed':
+          throw Exception(
+            'Email não confirmado. Verifique sua caixa de entrada',
+          );
+        case 'Too many requests':
+          throw Exception(
+            'Muitas tentativas. Tente novamente em alguns minutos',
+          );
+        default:
+          throw Exception('Erro de autenticação: ${e.message}');
+      }
+    } catch (e) {
+      print('💥 Erro geral no login: $e');
+      throw Exception('Erro inesperado durante o login');
+    }
   }
 
+  static Future<void> signOut() async {
+    try {
+      await SupabaseConfig.client.auth.signOut();
+      print('👋 Logout realizado com sucesso');
+    } catch (e) {
+      print('❌ Erro no logout: $e');
+      throw Exception('Erro ao fazer logout');
+    }
+  }
+
+  static Future<bool> testConnection() async {
+    try {
+      print('🔍 Testando conexão com Supabase...');
+
+      final response = await SupabaseConfig.client
+          .from('users')
+          .select('count')
+          .limit(1);
+
+      print('✅ Conexão com Supabase OK');
+      return true;
+    } catch (e) {
+      print('❌ Erro de conexão com Supabase: $e');
+      return false;
+    }
+  }
+
+  // ========== MÉTODO getCurrentUser ATUALIZADO ==========
+
+  static Future<UserModel?> getCurrentUser() async {
+    try {
+      final user = SupabaseConfig.client.auth.currentUser;
+      if (user == null) {
+        print('👤 Nenhum usuário logado');
+        return null;
+      }
+
+      print('👤 Usuário autenticado encontrado: ${user.email}');
+
+      final result = await SupabaseService.selectSingle(
+        'users',
+        filters: {'id': user.id},
+      );
+
+      if (result == null) {
+        print('⚠️ Usuário autenticado mas não encontrado na tabela users');
+        // Tentar criar o perfil
+        await _createUserProfileIfNeeded(user);
+        // Recarregar após criar
+        return getCurrentUser();
+      }
+
+      // DEBUG: Mostra exatamente quais dados vieram do banco
+      print('🔍 DADOS DO BANCO:');
+      print('ID: ${result['id']}');
+      print('Email: ${result['email']}');
+      print('Full Name: ${result['full_name']}');
+      print('Employee ID: ${result['employee_id']}');
+      print('Role: ${result['role']}');
+      print('Department: ${result['department']}');
+      print('Position: ${result['position']}');
+      print('Hourly Wage: ${result['hourly_wage']}');
+      print('Is Active: ${result['is_active']}');
+      print('Created At: ${result['created_at']}');
+      print('Updated At: ${result['updated_at']}');
+
+      // CORREÇÃO: Adicionar valores padrão para campos null
+      final safeResult = Map<String, dynamic>.from(result);
+
+      if (safeResult['employee_id'] == null) {
+        safeResult['employee_id'] = 'ADMIN001';
+        print(
+          '⚠️ Employee ID era null, definido como: ${safeResult['employee_id']}',
+        );
+        await SupabaseService.update(
+          'users',
+          {'employee_id': safeResult['employee_id']},
+          filters: {'id': user.id},
+        );
+      }
+
+      if (safeResult['role'] == null) {
+        safeResult['role'] = 'admin';
+        print('⚠️ Role era null, definido como: ${safeResult['role']}');
+        await SupabaseService.update(
+          'users',
+          {'role': safeResult['role']},
+          filters: {'id': user.id},
+        );
+      }
+
+      if (safeResult['is_active'] == null) {
+        safeResult['is_active'] = true;
+        print(
+          '⚠️ Is Active era null, definido como: ${safeResult['is_active']}',
+        );
+        await SupabaseService.update(
+          'users',
+          {'is_active': safeResult['is_active']},
+          filters: {'id': user.id},
+        );
+      }
+
+      print('🔧 DADOS CORRIGIDOS: $safeResult');
+
+      final userModel = UserModel.fromJson(safeResult);
+      print('✅ Dados do usuário carregados: ${userModel.fullName}');
+      return userModel;
+    } catch (e) {
+      print('❌ Erro ao obter usuário atual: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+      return null;
+    }
+  }
+
+  static Future<void> _createUserProfileIfNeeded(User user) async {
+    try {
+      final existingUser = await SupabaseService.selectSingle(
+        'users',
+        filters: {'id': user.id},
+      );
+      if (existingUser == null) {
+        print('🔧 Criando perfil para usuário: ${user.email}');
+        await SupabaseService.insert('users', {
+          'id': user.id,
+          'email': user.email ?? '',
+          'full_name': user.userMetadata?['full_name'] ?? 'Usuário',
+          'employee_id': 'ADMIN001',
+          'role': 'admin',
+          'is_active': true,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+        print('✅ Perfil criado com sucesso');
+      }
+    } catch (e) {
+      print('❌ Erro ao criar perfil: $e');
+      throw Exception('Falha ao criar perfil: $e');
+    }
+  }
+
+  // ========== MÉTODOS EXISTENTES ==========
+
   static Future<List<UserModel>> getAllUsers() async {
-    final result = await SupabaseService.select(
-      'users',
-      orderBy: 'full_name',
-    );
+    final result = await SupabaseService.select('users', orderBy: 'full_name');
 
     return result.map<UserModel>((json) => UserModel.fromJson(json)).toList();
   }
@@ -83,10 +260,7 @@ class UserService {
   }
 
   static Future<void> deleteUser(String userId) async {
-    await SupabaseService.delete(
-      'users',
-      filters: {'id': userId},
-    );
+    await SupabaseService.delete('users', filters: {'id': userId});
   }
 
   static Future<List<DailySummaryModel>> getUserDailySummaries({
@@ -103,7 +277,9 @@ class UserService {
         .order('work_date', ascending: false);
 
     final result = await query;
-    return result.map<DailySummaryModel>((json) => DailySummaryModel.fromJson(json)).toList();
+    return result
+        .map<DailySummaryModel>((json) => DailySummaryModel.fromJson(json))
+        .toList();
   }
 
   static Future<Map<String, dynamic>> getUserMonthlyReport({
@@ -128,7 +304,7 @@ class UserService {
     for (final summary in summaries) {
       totalHours += summary.totalHours;
       totalOvertimeHours += summary.overtimeHours;
-      
+
       if (summary.status == DayStatus.complete) {
         daysWorked++;
       } else if (summary.status == DayStatus.missing) {

@@ -88,9 +88,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           children: [
             Text(
               'Bem-vindo, Administrador!',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
@@ -154,9 +154,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             // Quick Actions
             Text(
               'Ações Rápidas',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
 
@@ -184,32 +184,42 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             if (_employees.isNotEmpty) ...[
               Text(
                 'Funcionários Recentes',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              
-              ..._employees.take(5).map((employee) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: employee.isActive 
-                        ? Colors.green.withValues(alpha: 0.2)
-                        : Colors.grey.withValues(alpha: 0.2),
-                    child: Icon(
-                      employee.isAdmin ? Icons.admin_panel_settings : Icons.person,
-                      color: employee.isActive ? Colors.green : Colors.grey,
+
+              ..._employees
+                  .take(5)
+                  .map(
+                    (employee) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: employee.isActive
+                              ? Colors.green.withValues(alpha: 0.2)
+                              : Colors.grey.withValues(alpha: 0.2),
+                          child: Icon(
+                            employee.isAdmin
+                                ? Icons.admin_panel_settings
+                                : Icons.person,
+                            color: employee.isActive
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        ),
+                        title: Text(employee.fullName),
+                        subtitle: Text(
+                          '${employee.employeeId} • ${employee.department ?? 'Sem departamento'}',
+                        ),
+                        trailing: Icon(
+                          employee.isActive ? Icons.check_circle : Icons.cancel,
+                          color: employee.isActive ? Colors.green : Colors.red,
+                        ),
+                      ),
                     ),
                   ),
-                  title: Text(employee.fullName),
-                  subtitle: Text('${employee.employeeId} • ${employee.department ?? 'Sem departamento'}'),
-                  trailing: Icon(
-                    employee.isActive ? Icons.check_circle : Icons.cancel,
-                    color: employee.isActive ? Colors.green : Colors.red,
-                  ),
-                ),
-              )),
             ],
           ],
         ),
@@ -217,7 +227,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -309,9 +324,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -320,10 +333,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _signOut),
         ],
       ),
       body: IndexedStack(

@@ -5,10 +5,22 @@ import 'package:ponto/screens/login_screen.dart';
 import 'package:ponto/screens/employee_home_screen.dart';
 import 'package:ponto/screens/admin_home_screen.dart';
 import 'package:ponto/services/user_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseConfig.initialize();
+
+  try {
+    await SupabaseConfig.initialize();
+    print('✅ Supabase inicializado com sucesso');
+
+    // TEMPORÁRIO - Limpa dados corrompidos para debug
+    await Supabase.instance.client.auth.signOut();
+    print('🧹 Cache de autenticação limpo');
+  } catch (error) {
+    print('❌ Erro ao inicializar Supabase: $error');
+  }
+
   runApp(const MyApp());
 }
 
@@ -47,22 +59,41 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkAuthState() async {
     try {
+      print('🔍 Verificando estado de autenticação...');
+
+      // DEBUG: Verificar usuário do Supabase diretamente
+      final supabaseUser = Supabase.instance.client.auth.currentUser;
+      if (supabaseUser != null) {
+        print('👤 Usuário Supabase encontrado: ${supabaseUser.email}');
+        print('DEBUG - ID: ${supabaseUser.id}');
+        print('DEBUG - Email: ${supabaseUser.email}');
+        print('DEBUG - Phone: ${supabaseUser.phone}');
+        print('DEBUG - UserMetadata: ${supabaseUser.userMetadata}');
+        print('DEBUG - AppMetadata: ${supabaseUser.appMetadata}');
+      } else {
+        print('👤 Nenhum usuário logado');
+      }
+
       final currentUser = await UserService.getCurrentUser();
-      
+
       if (currentUser != null) {
+        print('✅ Usuário encontrado: ${currentUser.fullName}');
         setState(() {
-          _homeScreen = currentUser.isAdmin 
+          _homeScreen = currentUser.isAdmin
               ? const AdminHomeScreen()
               : const EmployeeHomeScreen();
           _isLoading = false;
         });
       } else {
+        print('👤 Nenhum usuário logado, direcionando para login');
         setState(() {
           _homeScreen = const LoginScreen();
           _isLoading = false;
         });
       }
     } catch (error) {
+      print('❌ Erro ao verificar autenticação: $error');
+      print('❌ Stack trace: ${StackTrace.current}');
       setState(() {
         _homeScreen = const LoginScreen();
         _isLoading = false;
@@ -89,11 +120,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.access_time,
-                  size: 80,
-                  color: Colors.white,
-                ),
+                Icon(Icons.access_time, size: 80, color: Colors.white),
                 SizedBox(height: 24),
                 CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -106,6 +133,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Carregando...',
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
               ],
             ),

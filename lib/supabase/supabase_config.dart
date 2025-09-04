@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart';
 /// Supabase configuration for the Ponto app
 class SupabaseConfig {
   static const String supabaseUrl = 'https://mnylmyqqmpjtsvybpbgq.supabase.co';
-  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ueWxteXFxbXBqdHN2eWJwYmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5NjEwMzEsImV4cCI6MjA3MjUzNzAzMX0.gE9o8lCiL36Y6vHTXwvuhfKEgCyScfZkZF_fOpgdbLk';
+  static const String anonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ueWxteXFxbXBqdHN2eWJwYmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5NjEwMzEsImV4cCI6MjA3MjUzNzAzMX0.gE9o8lCiL36Y6vHTXwvuhfKEgCyScfZkZF_fOpgdbLk';
 
   static Future<void> initialize() async {
     await Supabase.initialize(
@@ -16,6 +17,8 @@ class SupabaseConfig {
 
   static SupabaseClient get client => Supabase.instance.client;
   static GoTrueClient get auth => client.auth;
+
+  static get supabaseKey => null;
 }
 
 /// Authentication service - Remove this class if your project doesn't need auth
@@ -107,7 +110,7 @@ class SupabaseAuth {
           'employee_id': userData?['employee_id'] ?? '',
           'role': userData?['role'] ?? 'employee',
           'department': userData?['department'],
-          'position': userData?['position'], 
+          'position': userData?['position'],
           'hourly_wage': userData?['hourly_wage'],
           'is_active': true,
           'created_at': DateTime.now().toIso8601String(),
@@ -304,7 +307,11 @@ class SupabaseService {
 
       return await query;
     } catch (e) {
-      throw _handleDatabaseError('getDailySummariesInRange', 'daily_summaries', e);
+      throw _handleDatabaseError(
+        'getDailySummariesInRange',
+        'daily_summaries',
+        e,
+      );
     }
   }
 
@@ -316,28 +323,19 @@ class SupabaseService {
   ) async {
     try {
       final workDateStr = workDate.toIso8601String().split('T')[0];
-      
+
       // Check if summary already exists
       final existing = await selectSingle(
         'daily_summaries',
-        filters: {
-          'user_id': userId,
-          'work_date': workDateStr,
-        },
+        filters: {'user_id': userId, 'work_date': workDateStr},
       );
 
       if (existing != null) {
         // Update existing
         return await update(
           'daily_summaries',
-          {
-            ...summaryData,
-            'updated_at': DateTime.now().toIso8601String(),
-          },
-          filters: {
-            'user_id': userId,
-            'work_date': workDateStr,
-          },
+          {...summaryData, 'updated_at': DateTime.now().toIso8601String()},
+          filters: {'user_id': userId, 'work_date': workDateStr},
         );
       } else {
         // Insert new
